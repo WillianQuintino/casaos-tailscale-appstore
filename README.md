@@ -1,12 +1,18 @@
-Latest Release: [v0.0.1](https://github.com/WillianQuintino/casaos-tailscale-appstore/releases/tag/v0.0.1)
-
 # 🏪 CasaOS Tailscale AppStore
 
 App Store personalizado para CasaOS com aplicações relacionadas ao Tailscale e ferramentas de rede segura.
 
+## 📥 Links Rápidos
+
+| Tipo | Link |
+|------|------|
+| **🔗 App Store URL** | `https://raw.githubusercontent.com/WillianQuintino/casaos-tailscale-appstore/main` |
+| **📦 Latest ZIP** | [casaos-tailscale-appstore.zip](https://github.com/WillianQuintino/casaos-tailscale-appstore/releases/latest/download/casaos-tailscale-appstore.zip) |
+| **🏷️ Latest Release** | [v0.0.1](https://github.com/WillianQuintino/casaos-tailscale-appstore/releases/tag/v0.0.1) |
+
 ## 🚀 Como Adicionar ao CasaOS
 
-### Método 1: Interface Web (Recomendado)
+### Método 1: App Store URL (Recomendado)
 
 1. **Abra o CasaOS Dashboard**
 2. **Acesse a App Store**
@@ -17,7 +23,17 @@ App Store personalizado para CasaOS com aplicações relacionadas ao Tailscale e
    ```
 5. **Clique em "Add"**
 
-### Método 2: CLI
+### Método 2: Download ZIP Direto
+
+Para instalação manual ou se o método acima não funcionar:
+
+1. **Baixe o ZIP mais recente:**
+   ```
+   https://github.com/WillianQuintino/casaos-tailscale-appstore/releases/latest/download/casaos-tailscale-appstore.zip
+   ```
+2. **Extraia e importe no CasaOS**
+
+### Método 3: CLI
 
 ```bash
 casaos-cli app-management register app-store https://raw.githubusercontent.com/WillianQuintino/casaos-tailscale-appstore/main
@@ -82,11 +98,11 @@ Este app store usa GitHub Actions para automação completa:
 Para adicionar novas aplicações a este app store:
 
 1. **Fork este repositório**
-2. **Adicione sua aplicação em `Apps/[CATEGORIA]/[NOME-APP]/`**
-3. **Atualize os metadados:**
-   - `featured-apps.json` (se destacada)
-   - `recommend-list.json` (se recomendada)
-   - `store.json` (contador de apps)
+2. **Adicione sua aplicação em `Apps/[NOME-APP]/`**
+3. **Inclua arquivos obrigatórios:**
+   - `docker-compose.yml` (manifesto da aplicação)
+   - `icon.png` (ícone 512x512px)
+   - `screenshot-1.png` (screenshot da aplicação)
 4. **Teste no seu CasaOS**
 5. **Submeta Pull Request**
 
