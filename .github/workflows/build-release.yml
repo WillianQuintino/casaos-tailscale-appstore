@@ -21,22 +21,69 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Install validation tools
+        run: |
+          pip install pyyaml
 
       - name: Validate Docker Compose files
         run: |
           echo "🔍 Validating Docker Compose files..."
-          find Apps -name "docker-compose.yml" -type f | while read file; do
-            echo "Validating: $file"
-            docker compose -f "$file" config > /dev/null
-            if [ $? -eq 0 ]; then
-              echo "✅ $file is valid"
-            else
-              echo "❌ $file is invalid"
-              exit 1
-            fi
-          done
+          python3 << 'EOF'
+          import yaml
+          import os
+          import sys
+          from pathlib import Path
+
+          errors = []
+
+          for compose_file in Path("Apps").rglob("docker-compose.yml"):
+              print(f"Validating: {compose_file}")
+              try:
+                  with open(compose_file, 'r') as f:
+                      data = yaml.safe_load(f)
+
+                  # Check basic structure
+                  if not isinstance(data, dict):
+                      errors.append(f"❌ {compose_file}: Invalid YAML structure")
+                      continue
+
+                  # Check for services section
+                  if 'services' not in data:
+                      errors.append(f"❌ {compose_file}: Missing 'services' section")
+                      continue
+
+                  # Check for x-casaos section
+                  if 'x-casaos' not in data:
+                      errors.append(f"❌ {compose_file}: Missing 'x-casaos' section")
+                      continue
+
+                  # Check required x-casaos fields
+                  x_casaos = data['x-casaos']
+                  required_fields = ['architectures', 'main', 'author', 'category', 'description', 'title']
+
+                  for field in required_fields:
+                      if field not in x_casaos:
+                          errors.append(f"❌ {compose_file}: Missing required x-casaos field: {field}")
+
+                  print(f"✅ {compose_file} is valid")
+
+              except yaml.YAMLError as e:
+                  errors.append(f"❌ {compose_file}: YAML syntax error: {e}")
+              except Exception as e:
+                  errors.append(f"❌ {compose_file}: Error: {e}")
+
+          if errors:
+              for error in errors:
+                  print(error)
+              sys.exit(1)
+          else:
+              print("✅ All Docker Compose files are valid")
+          EOF
 
       - name: Validate JSON files
         run: |

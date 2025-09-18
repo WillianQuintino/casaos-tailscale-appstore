@@ -29,46 +29,76 @@ jobs:
           echo "Changed files:"
           echo "${{ steps.changed-files.outputs.all_changed_files }}"
 
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Install validation tools
+        run: |
+          pip install pyyaml
+
       - name: Validate Docker Compose syntax
         if: steps.changed-files.outputs.any_changed == 'true'
         run: |
           echo "🔍 Validating Docker Compose files..."
 
-          # Check if docker-compose.yml files were changed
-          for file in ${{ steps.changed-files.outputs.all_changed_files }}; do
-            if [[ $file == *"docker-compose.yml" ]]; then
-              echo "Validating: $file"
+          # Create Python script to validate changed Docker Compose files
+          cat > validate_compose.py << 'EOF'
+          import yaml
+          import sys
+          import os
 
-              # Check if file exists (might be deleted)
-              if [ -f "$file" ]; then
-                # Validate Docker Compose syntax
-                docker compose -f "$file" config > /dev/null
-                if [ $? -eq 0 ]; then
-                  echo "✅ $file has valid syntax"
-                else
-                  echo "❌ $file has invalid syntax"
-                  exit 1
-                fi
+          changed_files = "${{ steps.changed-files.outputs.all_changed_files }}".split()
+          errors = []
 
-                # Check for required x-casaos section
-                if ! grep -q "x-casaos:" "$file"; then
-                  echo "❌ $file missing required x-casaos section"
-                  exit 1
-                fi
+          for file in changed_files:
+              if file.endswith("docker-compose.yml") and os.path.exists(file):
+                  print(f"Validating: {file}")
 
-                # Check for required fields in x-casaos
-                required_fields=("architectures" "main" "author" "category" "description" "title")
-                for field in "${required_fields[@]}"; do
-                  if ! grep -A 50 "x-casaos:" "$file" | grep -q "$field:"; then
-                    echo "❌ $file missing required x-casaos field: $field"
-                    exit 1
-                  fi
-                done
+                  try:
+                      with open(file, 'r') as f:
+                          data = yaml.safe_load(f)
 
-                echo "✅ $file has required x-casaos configuration"
-              fi
-            fi
-          done
+                      # Check basic structure
+                      if not isinstance(data, dict):
+                          errors.append(f"❌ {file}: Invalid YAML structure")
+                          continue
+
+                      # Check for services section
+                      if 'services' not in data:
+                          errors.append(f"❌ {file}: Missing 'services' section")
+                          continue
+
+                      # Check for x-casaos section
+                      if 'x-casaos' not in data:
+                          errors.append(f"❌ {file}: Missing 'x-casaos' section")
+                          continue
+
+                      # Check required x-casaos fields
+                      x_casaos = data['x-casaos']
+                      required_fields = ['architectures', 'main', 'author', 'category', 'description', 'title']
+
+                      for field in required_fields:
+                          if field not in x_casaos:
+                              errors.append(f"❌ {file}: Missing required x-casaos field: {field}")
+
+                      print(f"✅ {file} has valid syntax and x-casaos configuration")
+
+                  except yaml.YAMLError as e:
+                      errors.append(f"❌ {file}: YAML syntax error: {e}")
+                  except Exception as e:
+                      errors.append(f"❌ {file}: Error: {e}")
+
+          if errors:
+              for error in errors:
+                  print(error)
+              sys.exit(1)
+          else:
+              print("✅ All Docker Compose files are valid")
+          EOF
+
+          python3 validate_compose.py
 
       - name: Validate JSON syntax
         if: steps.changed-files.outputs.any_changed == 'true'
