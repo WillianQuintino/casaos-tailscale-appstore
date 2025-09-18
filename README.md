@@ -1,4 +1,4 @@
-Latest Release: [v0.0.3](https://github.com/WillianQuintino/casaos-tailscale-appstore/releases/tag/v0.0.3)
+Latest Release: [v0.0.4](https://github.com/WillianQuintino/casaos-tailscale-appstore/releases/tag/v0.0.4)
 
 # 🏪 CasaOS Tailscale AppStore
 
