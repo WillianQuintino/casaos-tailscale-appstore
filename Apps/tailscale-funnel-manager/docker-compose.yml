@@ -2,7 +2,7 @@ name: tailscale-funnel-manager
 
 services:
   tailscale-funnel-manager:
-    image: ghcr.io/willianquintino/tailscale-funnel-manager:latest
+    image: willianquintino/tailscale-funnel-manager:latest
     container_name: tailscale-funnel-manager
     restart: unless-stopped
     ports:
