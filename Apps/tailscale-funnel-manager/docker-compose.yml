@@ -10,6 +10,7 @@ services:
       apt-get update &&
       apt-get install -y curl git supervisor &&
       curl -fsSL https://tailscale.com/install.sh | sh &&
+      rm -rf /app &&
       git clone https://github.com/WillianQuintino/tailscale-funnel-manager.git /app &&
       cd /app &&
       pip install -r requirements.txt &&
