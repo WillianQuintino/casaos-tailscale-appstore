@@ -13,6 +13,11 @@ on:
       - '*.json'
   workflow_dispatch:
 
+permissions:
+  contents: write
+  actions: read
+  checks: write
+
 jobs:
   validate:
     name: Validate Apps
