@@ -1,3 +1,5 @@
+Latest Release: [v0.0.2](https://github.com/WillianQuintino/casaos-tailscale-appstore/releases/tag/v0.0.2)
+
 # 🏪 CasaOS Tailscale AppStore
 
 App Store personalizado para CasaOS com aplicações relacionadas ao Tailscale e ferramentas de rede segura.
