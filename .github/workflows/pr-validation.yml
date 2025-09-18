@@ -42,7 +42,7 @@ jobs:
               # Check if file exists (might be deleted)
               if [ -f "$file" ]; then
                 # Validate Docker Compose syntax
-                docker-compose -f "$file" config > /dev/null
+                docker compose -f "$file" config > /dev/null
                 if [ $? -eq 0 ]; then
                   echo "✅ $file has valid syntax"
                 else
