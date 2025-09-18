@@ -50,6 +50,31 @@ casaos-cli app-management register app-store https://raw.githubusercontent.com/W
 | **Idiomas** | Inglês, Português |
 | **Última Atualização** | 2024-09-18 |
 
+## 🤖 Automação e CI/CD
+
+Este app store usa GitHub Actions para automação completa:
+
+### 🔄 Workflows Disponíveis
+
+- **🏗️ Build & Release**: Gera ZIPs automaticamente a cada push
+- **✅ PR Validation**: Valida Pull Requests antes do merge
+- **📊 Update Metadata**: Atualiza metadados automaticamente
+
+### 📦 Releases Automáticas
+
+- **ZIP Completo**: `casaos-tailscale-appstore.zip` para instalar toda a loja
+- **ZIPs Individuais**: Um ZIP para cada aplicação
+- **Checksums**: SHA256 para verificação de integridade
+- **Versionamento**: Tags automáticas com changelog
+
+### 🔐 Validações
+
+- Sintaxe Docker Compose
+- Estrutura de arquivos obrigatórios
+- Códigos de idioma corretos
+- Configurações x-casaos válidas
+- Scan de segurança básico
+
 ## 🛠️ Contribuir
 
 Para adicionar novas aplicações a este app store:

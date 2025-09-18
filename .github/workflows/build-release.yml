@@ -1,0 +1,242 @@
+name: Build and Release AppStore
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'Apps/**'
+      - '*.json'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'Apps/**'
+      - '*.json'
+  workflow_dispatch:
+
+jobs:
+  validate:
+    name: Validate Apps
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Validate Docker Compose files
+        run: |
+          echo "🔍 Validating Docker Compose files..."
+          find Apps -name "docker-compose.yml" -type f | while read file; do
+            echo "Validating: $file"
+            docker-compose -f "$file" config > /dev/null
+            if [ $? -eq 0 ]; then
+              echo "✅ $file is valid"
+            else
+              echo "❌ $file is invalid"
+              exit 1
+            fi
+          done
+
+      - name: Validate JSON files
+        run: |
+          echo "🔍 Validating JSON files..."
+          for file in *.json; do
+            if [ -f "$file" ]; then
+              echo "Validating: $file"
+              python3 -m json.tool "$file" > /dev/null
+              if [ $? -eq 0 ]; then
+                echo "✅ $file is valid JSON"
+              else
+                echo "❌ $file is invalid JSON"
+                exit 1
+              fi
+            fi
+          done
+
+      - name: Check required files
+        run: |
+          echo "🔍 Checking required files for each app..."
+          find Apps -maxdepth 1 -mindepth 1 -type d | while read app_dir; do
+            app_name=$(basename "$app_dir")
+            echo "Checking app: $app_name"
+
+            # Check required files
+            required_files=("docker-compose.yml" "icon.png" "screenshot-1.png")
+            for file in "${required_files[@]}"; do
+              if [ ! -f "$app_dir/$file" ]; then
+                echo "❌ Missing required file: $app_dir/$file"
+                exit 1
+              else
+                echo "✅ Found: $app_dir/$file"
+              fi
+            done
+          done
+
+  build-zip:
+    name: Build ZIP Release
+    needs: validate
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get latest tag
+        id: get_tag
+        run: |
+          # Get the latest tag, if no tags exist, start with v1.0.0
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+
+          # Increment patch version
+          if [[ $LATEST_TAG == v*.*.* ]]; then
+            IFS='.' read -r major minor patch <<< "${LATEST_TAG#v}"
+            NEW_PATCH=$((patch + 1))
+            NEW_TAG="v${major}.${minor}.${NEW_PATCH}"
+          else
+            NEW_TAG="v1.0.0"
+          fi
+          echo "new_tag=$NEW_TAG" >> $GITHUB_OUTPUT
+          echo "New tag will be: $NEW_TAG"
+
+      - name: Build individual app ZIPs
+        run: |
+          echo "📦 Building individual app ZIPs..."
+          mkdir -p dist/apps
+
+          find Apps -maxdepth 1 -mindepth 1 -type d | while read app_dir; do
+            app_name=$(basename "$app_dir")
+            echo "Building ZIP for: $app_name"
+
+            # Create ZIP for individual app
+            cd "$app_dir"
+            zip -r "../../dist/apps/${app_name}.zip" . -x "*.git*"
+            cd ../..
+
+            echo "✅ Created: dist/apps/${app_name}.zip"
+          done
+
+      - name: Build complete AppStore ZIP
+        run: |
+          echo "📦 Building complete AppStore ZIP..."
+
+          # Create main AppStore ZIP with all files except .git
+          zip -r "dist/casaos-tailscale-appstore.zip" . -x "*.git*" "dist/*" ".github/*"
+
+          echo "✅ Created: dist/casaos-tailscale-appstore.zip"
+
+      - name: Generate checksums
+        run: |
+          echo "🔐 Generating checksums..."
+          cd dist
+          find . -name "*.zip" -type f -exec sha256sum {} \; > checksums.txt
+          echo "✅ Generated checksums.txt"
+
+      - name: Create Release Notes
+        run: |
+          echo "📝 Creating release notes..."
+          cat > dist/RELEASE_NOTES.md << EOF
+          # Tailscale CasaOS AppStore Release ${{ steps.get_tag.outputs.new_tag }}
+
+          ## 📱 Applications Included
+
+          $(find Apps -maxdepth 1 -mindepth 1 -type d | while read app_dir; do
+            app_name=$(basename "$app_dir")
+            echo "- **$app_name**: Available as individual ZIP and in complete AppStore"
+          done)
+
+          ## 📦 Download Options
+
+          - **Complete AppStore**: \`casaos-tailscale-appstore.zip\` - Add entire store to CasaOS
+          - **Individual Apps**: Download specific app ZIPs from the apps folder
+
+          ## 🚀 Installation
+
+          ### Method 1: Complete AppStore
+          1. Download \`casaos-tailscale-appstore.zip\`
+          2. Add URL to CasaOS: \`https://raw.githubusercontent.com/WillianQuintino/casaos-tailscale-appstore/main\`
+
+          ### Method 2: Individual Apps
+          1. Download specific app ZIP
+          2. Import manually in CasaOS
+
+          ## 🔐 Verification
+
+          All files include SHA256 checksums for integrity verification.
+
+          ## 📅 Build Information
+
+          - **Build Date**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          - **Commit**: ${{ github.sha }}
+          - **Branch**: ${{ github.ref_name }}
+          EOF
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.get_tag.outputs.new_tag }}
+          name: Release ${{ steps.get_tag.outputs.new_tag }}
+          body_path: dist/RELEASE_NOTES.md
+          draft: false
+          prerelease: false
+          files: |
+            dist/*.zip
+            dist/checksums.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update README with latest release
+        run: |
+          echo "📝 Updating README with latest release info..."
+
+          # Update README.md with latest release information
+          sed -i "s|Latest Release: .*|Latest Release: [${{ steps.get_tag.outputs.new_tag }}](https://github.com/WillianQuintino/casaos-tailscale-appstore/releases/tag/${{ steps.get_tag.outputs.new_tag }})|g" README.md || echo "No previous release info found"
+
+          # Add release info if not present
+          if ! grep -q "Latest Release:" README.md; then
+            sed -i '1s/^/Latest Release: [${{ steps.get_tag.outputs.new_tag }}](https:\/\/github.com\/WillianQuintino\/casaos-tailscale-appstore\/releases\/tag\/${{ steps.get_tag.outputs.new_tag }})\n\n/' README.md
+          fi
+
+      - name: Commit README updates
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+
+          if git diff --quiet; then
+            echo "No changes to commit"
+          else
+            git add README.md
+            git commit -m "📝 Update README with release ${{ steps.get_tag.outputs.new_tag }} [skip ci]"
+            git push
+          fi
+
+  notify:
+    name: Notify Build Status
+    needs: [validate, build-zip]
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+      - name: Build Success Notification
+        if: needs.build-zip.result == 'success'
+        run: |
+          echo "🎉 Build completed successfully!"
+          echo "✅ All apps validated"
+          echo "📦 ZIP files created"
+          echo "🚀 Release published"
+
+      - name: Build Failure Notification
+        if: needs.validate.result == 'failure' || needs.build-zip.result == 'failure'
+        run: |
+          echo "❌ Build failed!"
+          if [ "${{ needs.validate.result }}" == "failure" ]; then
+            echo "🔍 Validation stage failed"
+          fi
+          if [ "${{ needs.build-zip.result }}" == "failure" ]; then
+            echo "📦 ZIP build stage failed"
+          fi
+          exit 1

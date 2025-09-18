@@ -1,0 +1,223 @@
+name: PR Validation
+
+on:
+  pull_request:
+    branches: [ main ]
+    types: [opened, synchronize, reopened]
+
+jobs:
+  validate-pr:
+    name: Validate Pull Request
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v40
+        with:
+          files: |
+            Apps/**
+            *.json
+
+      - name: List changed files
+        run: |
+          echo "Changed files:"
+          echo "${{ steps.changed-files.outputs.all_changed_files }}"
+
+      - name: Validate Docker Compose syntax
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: |
+          echo "🔍 Validating Docker Compose files..."
+
+          # Check if docker-compose.yml files were changed
+          for file in ${{ steps.changed-files.outputs.all_changed_files }}; do
+            if [[ $file == *"docker-compose.yml" ]]; then
+              echo "Validating: $file"
+
+              # Check if file exists (might be deleted)
+              if [ -f "$file" ]; then
+                # Validate Docker Compose syntax
+                docker-compose -f "$file" config > /dev/null
+                if [ $? -eq 0 ]; then
+                  echo "✅ $file has valid syntax"
+                else
+                  echo "❌ $file has invalid syntax"
+                  exit 1
+                fi
+
+                # Check for required x-casaos section
+                if ! grep -q "x-casaos:" "$file"; then
+                  echo "❌ $file missing required x-casaos section"
+                  exit 1
+                fi
+
+                # Check for required fields in x-casaos
+                required_fields=("architectures" "main" "author" "category" "description" "title")
+                for field in "${required_fields[@]}"; do
+                  if ! grep -A 50 "x-casaos:" "$file" | grep -q "$field:"; then
+                    echo "❌ $file missing required x-casaos field: $field"
+                    exit 1
+                  fi
+                done
+
+                echo "✅ $file has required x-casaos configuration"
+              fi
+            fi
+          done
+
+      - name: Validate JSON syntax
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: |
+          echo "🔍 Validating JSON files..."
+
+          for file in ${{ steps.changed-files.outputs.all_changed_files }}; do
+            if [[ $file == *.json ]]; then
+              echo "Validating: $file"
+
+              if [ -f "$file" ]; then
+                python3 -m json.tool "$file" > /dev/null
+                if [ $? -eq 0 ]; then
+                  echo "✅ $file has valid JSON syntax"
+                else
+                  echo "❌ $file has invalid JSON syntax"
+                  exit 1
+                fi
+              fi
+            fi
+          done
+
+      - name: Check app structure
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: |
+          echo "🔍 Checking app directory structure..."
+
+          # Find apps that were modified
+          modified_apps=()
+          for file in ${{ steps.changed-files.outputs.all_changed_files }}; do
+            if [[ $file == Apps/* ]]; then
+              app_name=$(echo "$file" | cut -d'/' -f2)
+              if [[ ! " ${modified_apps[@]} " =~ " ${app_name} " ]]; then
+                modified_apps+=("$app_name")
+              fi
+            fi
+          done
+
+          # Validate each modified app
+          for app in "${modified_apps[@]}"; do
+            app_dir="Apps/$app"
+            echo "Checking app: $app"
+
+            if [ -d "$app_dir" ]; then
+              # Check required files
+              required_files=("docker-compose.yml" "icon.png" "screenshot-1.png")
+              for file in "${required_files[@]}"; do
+                if [ ! -f "$app_dir/$file" ]; then
+                  echo "❌ Missing required file: $app_dir/$file"
+                  exit 1
+                else
+                  echo "✅ Found: $app_dir/$file"
+                fi
+              done
+
+              # Check app name format
+              if [[ ! $app =~ ^[a-z0-9][a-z0-9_-]*$ ]]; then
+                echo "❌ Invalid app name format: $app"
+                echo "App names must match ^[a-z0-9][a-z0-9_-]*$"
+                exit 1
+              fi
+
+              echo "✅ App $app structure is valid"
+            fi
+          done
+
+      - name: Validate language codes
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: |
+          echo "🔍 Validating language codes..."
+
+          # Check for correct language codes in changed files
+          for file in ${{ steps.changed-files.outputs.all_changed_files }}; do
+            if [ -f "$file" ] && [[ $file == *.yml || $file == *.json ]]; then
+              # Check for old language codes (en, pt) instead of (en_US, pt_BR)
+              if grep -q '"en":' "$file" && ! grep -q '"en_US":' "$file"; then
+                echo "❌ $file uses old language code 'en', should be 'en_US'"
+                exit 1
+              fi
+
+              if grep -q '"pt":' "$file" && ! grep -q '"pt_BR":' "$file"; then
+                echo "❌ $file uses old language code 'pt', should be 'pt_BR'"
+                exit 1
+              fi
+
+              # Check YAML files for language codes
+              if [[ $file == *.yml ]]; then
+                if grep -q 'en:' "$file" && ! grep -q 'en_US:' "$file"; then
+                  echo "❌ $file uses old language code 'en:', should be 'en_US:'"
+                  exit 1
+                fi
+
+                if grep -q 'pt:' "$file" && ! grep -q 'pt_BR:' "$file"; then
+                  echo "❌ $file uses old language code 'pt:', should be 'pt_BR:'"
+                  exit 1
+                fi
+              fi
+            fi
+          done
+
+          echo "✅ Language codes are valid"
+
+      - name: Security scan
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: |
+          echo "🔒 Running security scan..."
+
+          # Check for suspicious patterns in Docker Compose files
+          for file in ${{ steps.changed-files.outputs.all_changed_files }}; do
+            if [[ $file == *"docker-compose.yml" ]] && [ -f "$file" ]; then
+              # Check for potentially dangerous configurations
+              if grep -qi "privileged.*true" "$file" && ! grep -qi "tailscale" "$file"; then
+                echo "⚠️  $file uses privileged mode - please ensure this is necessary"
+              fi
+
+              if grep -qi "/var/run/docker.sock" "$file" && ! grep -qi "container.*discovery\|docker.*management" "$file"; then
+                echo "⚠️  $file mounts Docker socket - please ensure this is necessary"
+              fi
+
+              # Check for host network mode
+              if grep -qi "network_mode.*host" "$file"; then
+                echo "⚠️  $file uses host network mode - please ensure this is necessary"
+              fi
+            fi
+          done
+
+          echo "✅ Security scan completed"
+
+      - name: PR Summary
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: |
+          echo "📋 Pull Request Validation Summary"
+          echo "================================="
+          echo "✅ Docker Compose syntax validation passed"
+          echo "✅ JSON syntax validation passed"
+          echo "✅ App structure validation passed"
+          echo "✅ Language codes validation passed"
+          echo "✅ Security scan completed"
+          echo ""
+          echo "🎉 All validations passed! PR is ready for review."
+
+      - name: Comment PR
+        if: steps.changed-files.outputs.any_changed == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '🎉 **Validation Passed!** \n\n✅ All checks completed successfully:\n- Docker Compose syntax ✅\n- JSON syntax ✅\n- App structure ✅\n- Language codes ✅\n- Security scan ✅\n\nYour PR is ready for review!'
+            })

@@ -1,0 +1,256 @@
+name: Update AppStore Metadata
+
+on:
+  schedule:
+    # Run every day at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      force_update:
+        description: 'Force update all metadata'
+        required: false
+        default: 'false'
+
+jobs:
+  update-metadata:
+    name: Update Store Metadata
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: |
+          pip install pyyaml requests
+
+      - name: Update app counts and metadata
+        run: |
+          python3 << 'EOF'
+          import os
+          import json
+          import yaml
+          import datetime
+          from pathlib import Path
+
+          def count_apps():
+              apps_dir = Path("Apps")
+              if not apps_dir.exists():
+                  return 0
+
+              app_count = 0
+              for app_dir in apps_dir.iterdir():
+                  if app_dir.is_dir() and (app_dir / "docker-compose.yml").exists():
+                      app_count += 1
+              return app_count
+
+          def get_app_list():
+              apps_dir = Path("Apps")
+              apps = []
+
+              if apps_dir.exists():
+                  for app_dir in apps_dir.iterdir():
+                      if app_dir.is_dir() and (app_dir / "docker-compose.yml").exists():
+                          # Read docker-compose.yml to get app info
+                          compose_file = app_dir / "docker-compose.yml"
+                          try:
+                              with open(compose_file, 'r') as f:
+                                  compose_data = yaml.safe_load(f)
+
+                              # Extract x-casaos metadata
+                              x_casaos = compose_data.get('x-casaos', {})
+
+                              app_info = {
+                                  'name': app_dir.name,
+                                  'title': x_casaos.get('title', {}).get('en_US', app_dir.name),
+                                  'category': x_casaos.get('category', 'Other'),
+                                  'author': x_casaos.get('author', 'Unknown'),
+                                  'description': x_casaos.get('description', {}).get('en_US', '')
+                              }
+                              apps.append(app_info)
+                          except Exception as e:
+                              print(f"Error reading {compose_file}: {e}")
+
+              return apps
+
+          def update_featured_apps():
+              """Update featured-apps.json with current app information"""
+              apps = get_app_list()
+
+              # Create featured apps list (for now, feature all apps)
+              featured_apps = []
+              for app in apps:
+                  featured_app = {
+                      "name": app['name'],
+                      "title": {
+                          "en_US": app['title'],
+                          "pt_BR": app['title']  # Could be improved with translations
+                      },
+                      "description": {
+                          "en_US": app['description'][:100] + "..." if len(app['description']) > 100 else app['description'],
+                          "pt_BR": app['description'][:100] + "..." if len(app['description']) > 100 else app['description']
+                      },
+                      "icon": f"https://cdn.jsdelivr.net/gh/WillianQuintino/casaos-tailscale-appstore@main/Apps/{app['name']}/icon.png",
+                      "category": app['category'],
+                      "featured": True,
+                      "screenshots": [
+                          f"https://cdn.jsdelivr.net/gh/WillianQuintino/casaos-tailscale-appstore@main/Apps/{app['name']}/screenshot-1.png"
+                      ]
+                  }
+                  featured_apps.append(featured_app)
+
+              # Write featured-apps.json
+              with open('featured-apps.json', 'w') as f:
+                  json.dump(featured_apps, f, indent=2, ensure_ascii=False)
+
+              print(f"Updated featured-apps.json with {len(featured_apps)} apps")
+
+          def update_recommend_list():
+              """Update recommend-list.json with current app information"""
+              apps = get_app_list()
+
+              # Create recommend list
+              recommended_apps = []
+              for app in apps:
+                  recommended_app = {
+                      "name": app['name'],
+                      "title": {
+                          "en_US": app['title'],
+                          "pt_BR": app['title']
+                      },
+                      "description": {
+                          "en_US": f"Essential {app['category'].lower()} tool for CasaOS",
+                          "pt_BR": f"Ferramenta essencial de {app['category'].lower()} para CasaOS"
+                      },
+                      "icon": f"https://cdn.jsdelivr.net/gh/WillianQuintino/casaos-tailscale-appstore@main/Apps/{app['name']}/icon.png",
+                      "category": app['category'],
+                      "recommended": True,
+                      "tags": ["casaos", app['category'].lower(), "selfhosted"]
+                  }
+                  recommended_apps.append(recommended_app)
+
+              # Write recommend-list.json
+              with open('recommend-list.json', 'w') as f:
+                  json.dump(recommended_apps, f, indent=2, ensure_ascii=False)
+
+              print(f"Updated recommend-list.json with {len(recommended_apps)} apps")
+
+          def get_categories():
+              """Get unique categories from all apps"""
+              apps = get_app_list()
+              categories = set()
+
+              for app in apps:
+                  categories.add(app['category'])
+
+              return sorted(list(categories))
+
+          def update_category_list():
+              """Update category-list.json with current categories"""
+              categories = get_categories()
+
+              category_list = []
+              for category in categories:
+                  category_item = {
+                      "id": category.lower(),
+                      "name": {
+                          "en_US": category,
+                          "pt_BR": category  # Could be improved with translations
+                      },
+                      "description": {
+                          "en_US": f"{category} applications and tools",
+                          "pt_BR": f"Aplicações e ferramentas de {category}"
+                      },
+                      "icon": "🔧" if category == "Network" else "📱"
+                  }
+                  category_list.append(category_item)
+
+              # Write category-list.json
+              with open('category-list.json', 'w') as f:
+                  json.dump(category_list, f, indent=2, ensure_ascii=False)
+
+              print(f"Updated category-list.json with {len(category_list)} categories")
+
+          # Main execution
+          print("Starting metadata update...")
+
+          app_count = count_apps()
+          print(f"Found {app_count} apps")
+
+          if app_count > 0:
+              update_featured_apps()
+              update_recommend_list()
+              update_category_list()
+
+              print("✅ All metadata files updated successfully")
+          else:
+              print("⚠️  No apps found, skipping metadata update")
+          EOF
+
+      - name: Update README statistics
+        run: |
+          # Count apps and update README
+          APP_COUNT=$(find Apps -maxdepth 1 -mindepth 1 -type d | wc -l)
+          CATEGORY_COUNT=$(find Apps -maxdepth 1 -mindepth 1 -type d | wc -l)  # Simplified for now
+
+          # Update README.md with current statistics
+          sed -i "s/| \*\*Total de Apps\*\* | .* |/| **Total de Apps** | $APP_COUNT |/g" README.md || echo "Total apps not found in README"
+          sed -i "s/| \*\*Categorias\*\* | .* |/| **Categorias** | Network |/g" README.md || echo "Categories not found in README"
+
+          # Update last updated date
+          CURRENT_DATE=$(date -u +"%Y-%m-%d")
+          sed -i "s/| \*\*Última Atualização\*\* | .* |/| **Última Atualização** | $CURRENT_DATE |/g" README.md || echo "Last updated not found in README"
+
+      - name: Check for changes
+        id: verify-changed-files
+        run: |
+          if git diff --quiet; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+            echo "No changes detected"
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "Changes detected:"
+            git diff --name-only
+          fi
+
+      - name: Commit and push changes
+        if: steps.verify-changed-files.outputs.changed == 'true'
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+
+          git add .
+          git commit -m "🤖 Auto-update metadata files and statistics
+
+          - Updated app counts and statistics
+          - Regenerated featured-apps.json
+          - Regenerated recommend-list.json
+          - Regenerated category-list.json
+          - Updated README.md statistics
+
+          Generated on: $(date -u +"%Y-%m-%d %H:%M:%S UTC")" || exit 0
+
+          git push
+
+      - name: Create summary
+        run: |
+          APP_COUNT=$(find Apps -maxdepth 1 -mindepth 1 -type d | wc -l)
+          echo "📊 Metadata Update Summary"
+          echo "=========================="
+          echo "📱 Total Apps: $APP_COUNT"
+          echo "📂 Categories: $(cat category-list.json | python3 -c "import sys, json; print(len(json.load(sys.stdin)))")"
+          echo "⭐ Featured Apps: $(cat featured-apps.json | python3 -c "import sys, json; print(len(json.load(sys.stdin)))")"
+          echo "👍 Recommended Apps: $(cat recommend-list.json | python3 -c "import sys, json; print(len(json.load(sys.stdin)))")"
+          echo ""
+          if [ "${{ steps.verify-changed-files.outputs.changed }}" == "true" ]; then
+            echo "✅ Metadata files updated and committed"
+          else
+            echo "ℹ️  No changes needed - metadata is up to date"
+          fi
