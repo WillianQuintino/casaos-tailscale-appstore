@@ -2,12 +2,12 @@
   {
     "name": "tailscale-funnel-manager",
     "title": {
-      "en": "Tailscale Funnel Manager",
-      "pt": "Gerenciador Tailscale Funnel"
+      "en_US": "Tailscale Funnel Manager",
+      "pt_BR": "Gerenciador Tailscale Funnel"
     },
     "description": {
-      "en": "Essential tool for exposing CasaOS services securely to the internet",
-      "pt": "Ferramenta essencial para expor serviços CasaOS com segurança na internet"
+      "en_US": "Essential tool for exposing CasaOS services securely to the internet",
+      "pt_BR": "Ferramenta essencial para expor serviços CasaOS com segurança na internet"
     },
     "icon": "https://tailscale.com/favicon.ico",
     "category": "Network",
@@ -16,32 +16,32 @@
     "use_cases": [
       {
         "title": {
-          "en": "Remote Media Access",
-          "pt": "Acesso Remoto a Mídia"
+          "en_US": "Remote Media Access",
+          "pt_BR": "Acesso Remoto a Mídia"
         },
         "description": {
-          "en": "Access your Plex, Jellyfin or Emby server from anywhere",
-          "pt": "Acesse seu servidor Plex, Jellyfin ou Emby de qualquer lugar"
+          "en_US": "Access your Plex, Jellyfin or Emby server from anywhere",
+          "pt_BR": "Acesse seu servidor Plex, Jellyfin ou Emby de qualquer lugar"
         }
       },
       {
         "title": {
-          "en": "Cloud Storage Access",
-          "pt": "Acesso a Armazenamento em Nuvem"
+          "en_US": "Cloud Storage Access",
+          "pt_BR": "Acesso a Armazenamento em Nuvem"
         },
         "description": {
-          "en": "Secure access to Nextcloud, ownCloud or similar services",
-          "pt": "Acesso seguro ao Nextcloud, ownCloud ou serviços similares"
+          "en_US": "Secure access to Nextcloud, ownCloud or similar services",
+          "pt_BR": "Acesso seguro ao Nextcloud, ownCloud ou serviços similares"
         }
       },
       {
         "title": {
-          "en": "Home Automation",
-          "pt": "Automação Residencial"
+          "en_US": "Home Automation",
+          "pt_BR": "Automação Residencial"
         },
         "description": {
-          "en": "Remote control of Home Assistant, OpenHAB or similar platforms",
-          "pt": "Controle remoto do Home Assistant, OpenHAB ou plataformas similares"
+          "en_US": "Remote control of Home Assistant, OpenHAB or similar platforms",
+          "pt_BR": "Controle remoto do Home Assistant, OpenHAB ou plataformas similares"
         }
       }
     ]
