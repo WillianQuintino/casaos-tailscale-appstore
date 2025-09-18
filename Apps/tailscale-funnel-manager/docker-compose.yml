@@ -2,9 +2,20 @@ name: tailscale-funnel-manager
 
 services:
   tailscale-funnel-manager:
-    image: willianquintino/tailscale-funnel-manager:latest
+    image: python:3.11-slim
     container_name: tailscale-funnel-manager
     restart: unless-stopped
+    command: >
+      sh -c "
+      apt-get update &&
+      apt-get install -y curl git supervisor &&
+      curl -fsSL https://tailscale.com/install.sh | sh &&
+      git clone https://github.com/WillianQuintino/tailscale-funnel-manager.git /app &&
+      cd /app &&
+      pip install -r requirements.txt &&
+      cp supervisord.conf /etc/supervisor/conf.d/ &&
+      supervisord -c /etc/supervisor/supervisord.conf
+      "
     ports:
       - target: 8080
         published: ${WEBUI_PORT:-8080}
