@@ -2,13 +2,24 @@ name: tailscale-funnel-manager
 
 services:
   tailscale-funnel-manager:
-    build:
-      context: https://github.com/WillianQuintino/tailscale-funnel-manager.git
-      dockerfile: Dockerfile
-    # Fallback to pre-built image if available
-    # image: ghcr.io/willianquintino/tailscale-funnel-manager:latest
+    image: tailscale/tailscale:latest
     container_name: tailscale-funnel-manager
     restart: unless-stopped
+    command: >
+      sh -c "
+      echo '🚀 Starting Tailscale Funnel Manager v2.0...' &&
+      apk add --no-cache nodejs npm git curl &&
+      rm -rf /app &&
+      git clone https://github.com/WillianQuintino/tailscale-funnel-manager.git /app &&
+      cd /app &&
+      npm install &&
+      npm run build &&
+      echo '📊 Starting Tailscale daemon...' &&
+      tailscaled --state-dir=/var/lib/tailscale --tun=userspace-networking &
+      sleep 3 &&
+      echo '🌐 Starting Next.js application...' &&
+      npm start
+      "
     ports:
       - target: 3000
         published: ${WEBUI_PORT:-3000}
@@ -44,6 +55,8 @@ services:
       - PGID=$PGID
       - NODE_ENV=production
       - TS_STATE_DIR=/var/lib/tailscale
+      - TS_HOSTNAME=${TS_HOSTNAME:-CasaOS-TFM}
+      - TS_EXTRA_ARGS=--accept-routes --accept-dns
       - AUTH_ENABLED=false
       - AUTH_TYPE=tailscale
     x-casaos:
