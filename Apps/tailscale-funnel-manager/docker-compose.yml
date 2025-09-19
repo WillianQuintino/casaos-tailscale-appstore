@@ -2,43 +2,50 @@ name: tailscale-funnel-manager
 
 services:
   tailscale-funnel-manager:
-    image: python:3.11-slim
+    build:
+      context: https://github.com/WillianQuintino/tailscale-funnel-manager.git
+      dockerfile: Dockerfile
+    # Fallback to pre-built image if available
+    # image: ghcr.io/willianquintino/tailscale-funnel-manager:latest
     container_name: tailscale-funnel-manager
     restart: unless-stopped
-    command: >
-      sh -c "
-      apt-get update &&
-      apt-get install -y curl git supervisor &&
-      curl -fsSL https://tailscale.com/install.sh | sh &&
-      rm -rf /app &&
-      git clone https://github.com/WillianQuintino/tailscale-funnel-manager.git /app &&
-      cd /app &&
-      pip install -r requirements.txt &&
-      cp supervisord.conf /etc/supervisor/conf.d/ &&
-      supervisord -c /etc/supervisor/supervisord.conf
-      "
     ports:
-      - target: 8080
-        published: ${WEBUI_PORT:-8080}
+      - target: 3000
+        published: ${WEBUI_PORT:-3000}
         protocol: tcp
     volumes:
       - type: bind
         source: /DATA/AppData/$AppID/data
         target: /app/data
+        bind:
+          create_host_path: true
       - type: bind
         source: /DATA/AppData/$AppID/tailscale
         target: /var/lib/tailscale
+        bind:
+          create_host_path: true
       - type: bind
         source: /var/run/docker.sock
         target: /var/run/docker.sock
         read_only: false
+      - type: bind
+        source: /dev/net/tun
+        target: /dev/net/tun
+        bind:
+          create_host_path: true
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
     privileged: true
-    network_mode: bridge
+    network_mode: host
     environment:
       - TZ=$TZ
       - PUID=$PUID
       - PGID=$PGID
-      - PYTHONUNBUFFERED=1
+      - NODE_ENV=production
+      - TS_STATE_DIR=/var/lib/tailscale
+      - AUTH_ENABLED=false
+      - AUTH_TYPE=tailscale
     x-casaos:
       envs:
         - container: TZ
@@ -53,8 +60,20 @@ services:
           description:
             en_US: Group ID for file permissions
             pt_BR: ID do grupo para permissões de arquivo
+        - container: NODE_ENV
+          description:
+            en_US: Node.js environment (production/development)
+            pt_BR: Ambiente Node.js (production/development)
+        - container: AUTH_ENABLED
+          description:
+            en_US: Enable authentication (true/false)
+            pt_BR: Habilitar autenticação (true/false)
+        - container: AUTH_TYPE
+          description:
+            en_US: Authentication type (tailscale/casaos/custom)
+            pt_BR: Tipo de autenticação (tailscale/casaos/custom)
       ports:
-        - container: "8080"
+        - container: "3000"
           description:
             en_US: Web interface port
             pt_BR: Porta da interface web
@@ -80,43 +99,89 @@ x-casaos:
   author: WillianQuintino
   category: Network
   description:
-    en_US: A modern web interface to create and manage Tailscale Funnels for your CasaOS containers. Automatically discovers running containers and their ports, allowing you to expose services to the internet securely through Tailscale's encrypted network. Features include one-click funnel creation, real-time monitoring, and comprehensive container discovery.
-    pt_BR: Uma interface web moderna para criar e gerenciar Tailscale Funnels para seus containers CasaOS. Descobre automaticamente containers em execução e suas portas, permitindo expor serviços para a internet de forma segura através da rede criptografada do Tailscale. Inclui criação de funnel com um clique, monitoramento em tempo real e descoberta abrangente de containers.
+    en_US: A modern Next.js web interface to create and manage Tailscale Funnels for your CasaOS containers and services. Features a beautiful glassmorphism UI, automatic container discovery, CasaOS integration, real-time status monitoring, and one-click funnel creation. Supports both Auth Key and browser-based authentication flows.
+    pt_BR: Uma interface web moderna em Next.js para criar e gerenciar Tailscale Funnels para seus containers e serviços CasaOS. Apresenta uma bela UI glassmorphism, descoberta automática de containers, integração CasaOS, monitoramento de status em tempo real e criação de funnel com um clique. Suporta tanto Auth Key quanto fluxos de autenticação baseados em navegador.
   developer: WillianQuintino
   icon: https://cdn.jsdelivr.net/gh/WillianQuintino/casaos-tailscale-appstore@main/Apps/tailscale-funnel-manager/icon.png
   tagline:
-    en_US: Secure web exposure for your CasaOS containers via Tailscale Funnel
-    pt_BR: Exposição web segura para seus containers CasaOS via Tailscale Funnel
+    en_US: Modern Tailscale Funnel management with glassmorphism UI
+    pt_BR: Gerenciamento moderno de Tailscale Funnel com UI glassmorphism
   title:
     en_US: Tailscale Funnel Manager
     pt_BR: Gerenciador Tailscale Funnel
   tips:
     before_install:
       en_US: |
-        1. You need a Tailscale account (free at https://tailscale.com)
-        2. Generate an auth key at https://login.tailscale.com/admin/settings/keys
-        3. Ensure your CasaOS server can access the internet
-        4. Only ports 443, 8443, and 10000 are supported for Tailscale Funnels
+        🚀 **NEW VERSION 2.0** - Now with Next.js and modern UI!
+
+        **Requirements:**
+        1. Tailscale account (free at https://tailscale.com)
+        2. Auth Key OR browser authentication (both supported!)
+        3. Internet access for your CasaOS server
+        4. Funnel ports: 443, 8443, or 10000
+
+        **New Features:**
+        ✨ Beautiful glassmorphism interface
+        🔗 Browser-based login URL generation
+        🐳 Automatic Docker container discovery
+        🏠 CasaOS apps integration
+        📊 Real-time status monitoring
+        🔄 WebSocket live updates
       pt_BR: |
-        1. Você precisa de uma conta Tailscale (gratuita em https://tailscale.com)
-        2. Gere uma chave de autenticação em https://login.tailscale.com/admin/settings/keys
-        3. Certifique-se de que seu servidor CasaOS pode acessar a internet
-        4. Apenas as portas 443, 8443 e 10000 são suportadas para Tailscale Funnels
+        🚀 **NOVA VERSÃO 2.0** - Agora com Next.js e UI moderna!
+
+        **Requisitos:**
+        1. Conta Tailscale (gratuita em https://tailscale.com)
+        2. Auth Key OU autenticação via navegador (ambos suportados!)
+        3. Acesso à internet para seu servidor CasaOS
+        4. Portas de funnel: 443, 8443 ou 10000
+
+        **Novos Recursos:**
+        ✨ Interface glassmorphism linda
+        🔗 Geração de URL de login via navegador
+        🐳 Descoberta automática de containers Docker
+        🏠 Integração com apps CasaOS
+        📊 Monitoramento de status em tempo real
+        🔄 Atualizações ao vivo via WebSocket
     after_install:
       en_US: |
-        1. Access the web interface at http://your-server:${WEBUI_PORT:-8080}
-        2. Enter your Tailscale auth key in the authentication section
-        3. Wait for Tailscale to connect and authenticate
-        4. Your CasaOS containers will be automatically discovered
-        5. Click on port buttons to create funnels with one click
-        6. Access your services from anywhere using the generated HTTPS URLs
+        🎉 **Installation Complete!**
+
+        **Getting Started:**
+        1. 🌐 Access: http://your-server:${WEBUI_PORT:-3000}
+        2. 🔧 **Two setup options:**
+           - 🔑 **Auth Key**: Enter your Tailscale auth key
+           - 🌐 **Browser Login**: Click "Get Login URL" for easy setup
+        3. ⏳ Wait for connection and authentication
+        4. 🔍 Your containers will be auto-discovered
+        5. 🚀 Create funnels with one-click
+        6. 🌍 Access services from anywhere with HTTPS URLs
+
+        **New Features in v2.0:**
+        - 📱 Mobile-responsive glassmorphism UI
+        - 🔄 Real-time status updates
+        - 🐳 Smart container detection
+        - 🏠 CasaOS integration
+        - 🔗 No-hassle browser authentication
       pt_BR: |
-        1. Acesse a interface web em http://seu-servidor:${WEBUI_PORT:-8080}
-        2. Insira sua chave de autenticação Tailscale na seção de autenticação
-        3. Aguarde o Tailscale conectar e autenticar
-        4. Seus containers CasaOS serão descobertos automaticamente
-        5. Clique nos botões de porta para criar funnels com um clique
-        6. Acesse seus serviços de qualquer lugar usando as URLs HTTPS geradas
+        🎉 **Instalação Completa!**
+
+        **Primeiros Passos:**
+        1. 🌐 Acesse: http://seu-servidor:${WEBUI_PORT:-3000}
+        2. 🔧 **Duas opções de configuração:**
+           - 🔑 **Auth Key**: Insira sua chave de autenticação Tailscale
+           - 🌐 **Login via Navegador**: Clique "Obter URL de Login" para configuração fácil
+        3. ⏳ Aguarde conexão e autenticação
+        4. 🔍 Seus containers serão auto-descobertos
+        5. 🚀 Crie funnels com um clique
+        6. 🌍 Acesse serviços de qualquer lugar com URLs HTTPS
+
+        **Novos Recursos na v2.0:**
+        - 📱 UI glassmorphism responsiva para mobile
+        - 🔄 Atualizações de status em tempo real
+        - 🐳 Detecção inteligente de containers
+        - 🏠 Integração com CasaOS
+        - 🔗 Autenticação via navegador sem complicações
   thumbnail: https://cdn.jsdelivr.net/gh/WillianQuintino/casaos-tailscale-appstore@main/Apps/tailscale-funnel-manager/thumbnail.png
   index: /
-  port_map: ${WEBUI_PORT:-8080}
+  port_map: ${WEBUI_PORT:-3000}

@@ -2,17 +2,18 @@
   {
     "name": "tailscale-funnel-manager",
     "title": {
-      "en_US": "Tailscale Funnel Manager",
-      "pt_BR": "Gerenciador Tailscale Funnel"
+      "en_US": "Tailscale Funnel Manager v2.0",
+      "pt_BR": "Gerenciador Tailscale Funnel v2.0"
     },
     "description": {
-      "en_US": "Essential tool for exposing CasaOS services securely to the internet",
-      "pt_BR": "Ferramenta essencial para expor serviços CasaOS com segurança na internet"
+      "en_US": "🔥 Completely redesigned with modern Next.js, glassmorphism UI, and browser authentication for seamless Tailscale Funnel management",
+      "pt_BR": "🔥 Completamente redesenhado com Next.js moderno, UI glassmorphism e autenticação via navegador para gerenciamento perfeito de Tailscale Funnel"
     },
-    "icon": "https://tailscale.com/favicon.ico",
+    "icon": "https://cdn.jsdelivr.net/gh/WillianQuintino/casaos-tailscale-appstore@main/Apps/tailscale-funnel-manager/icon.png",
     "category": "Network",
     "recommended": true,
-    "tags": ["security", "network", "vpn", "tunnel", "remote-access"],
+    "version": "2.0.0",
+    "tags": ["security", "network", "vpn", "tunnel", "remote-access", "nextjs", "modern-ui", "glassmorphism"],
     "use_cases": [
       {
         "title": {
